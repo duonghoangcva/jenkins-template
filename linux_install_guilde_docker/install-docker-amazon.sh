@@ -1,6 +1,6 @@
 #!/bin/bash
-sudo dnf update -y
-sudo dnf install docker -y
+sudo apt update -y
+sudo apt install docker -y
 sudo systemctl start docker
 sudo systemctl enable docker
 newgrp docker
