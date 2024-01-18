@@ -6,21 +6,21 @@ pipeline {
 //    }
     parameters {
         // string(name: 'BUCKET_NAME', description: 'Enter the bucket name')
-        string(name: 'EC2_INSTANCE_IP', description: 'Enter the bucket name')
+        string(name: 'VM_INSTANCE_IP', description: 'Enter the bucket name')
         // string(name: 'DOCKER_IMAGE_NAME', description: 'Enter the docker image name')
         // string(name: 'DOCKER_CONTAINER_NAME', description: 'Enter the bucket name')
         // string(name: 'EMAIL_RECIPIENT', description: 'Email address to receive the notification')
         string(name: 'BRANCH', description: 'Deploy Branch')
-        string(name: 'S3_BUCKET_NAME', description: 'Deploy Bucket Name')
-        string(name: 'EC2_INSTANCE_NAME', description: 'Deploy EC2 Name')
-        string(name: 'STACK_NAME', description: 'Deploy Stack Name')
+        // string(name: 'S3_BUCKET_NAME', description: 'Deploy Bucket Name')
+        // string(name: 'EC2_INSTANCE_NAME', description: 'Deploy EC2 Name')
+        // string(name: 'STACK_NAME', description: 'Deploy Stack Name')
 
     }
 
     stages {
         stage('Clean up build env linux') {
         agent { 
-            label 'linux'
+            label 'nole'
         }            
             steps {
                 cleanWs()
@@ -31,7 +31,7 @@ pipeline {
             label 'linux'
         }            
             steps {
-                git branch: params.BRANCH, credentialsId: '95598b0f-5f34-4404-bbed-657578cc4fc3', url: 'https://github.com/luuthanhtu020296/jenkins-template.git'            } 
+                git credentialsId: 'git-key', url: 'https://github.com/duonghoangcva/jenkins-template.git'            } 
         }
         // stage('Clean up build env windows') {
         // agent { 
@@ -48,76 +48,79 @@ pipeline {
         //     steps {
         //         git branch: params.BRANCH, credentialsId: '95598b0f-5f34-4404-bbed-657578cc4fc3', url: 'https://github.com/luuthanhtu020296/jenkins-template.git'            } 
         // }        
-        // stage('Build') {
-        // agent { 
-        //     label 'linux'
-        // }            
-        //     steps {
-        //         script {
-        //             // Perform any build steps if needed
-        //             sh "ls -l -a"
-        //         }
-        //     }
-        // }
-        // // stage('Deploy to S3') {
-        // //     steps {
-        // //         withCredentials([[
-        // //             $class: 'AmazonWebServicesCredentialsBinding',
-        // //             credentialsId: "jenkins",
-        // //             accessKeyVariable: 'AWS_ACCESS_KEY_ID',
-        // //             secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
-        // //         ]]) {
-        // //             sh 'aws s3 sync . s3://${BUCKET_NAME}'
-        // //             // sh 'cat /home/ec2-user/work/workspace/demo-tos3/index.html'
-        // //         }
-        // //     }
-        // // }
+        stage('Build') {
+        agent { 
+            label 'nole'
+        }            
+            steps {
+                script {
+                    // Perform any build steps if needed
+                    sh "ls -l -a"
+                }
+            }
+        }
+        stage('Login to az') {
+            steps {
+                withCredentials([azureServicePrincipal('azkey')]) {
+                          sh 'az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET -t $AZURE_TENANT_ID'
+                          sh 'az account set -s $AZURE_SUBSCRIPTION_ID'
+                          sh 'az resource list'
+                }
+            }
+        stage('Deploy to Blob') {
+            steps {
+                sh 'pwd'
+                sh 'chmod +x ./azblob.sh'
+                sh './azblob.sh'
+                // sh 'cat /home/ec2-user/work/workspace/demo-tos3/index.html'
+            }
+        }
         
-        // stage('Install Docker') {
-        // agent { 
-        //     label 'linux'
-        // }            
-        //     steps {
-        //         script {
-        //             // SSH into EC2 instance and run the Docker container
-        //             sshagent(['deploy']) {
-        //                 sh """
-        //                     scp linux_install_guilde_docker/install-docker-amazon.sh ec2-user@${EC2_INSTANCE_IP}:/home/ec2-user/deploy/
-        //                 """
-        //             }
-        //         }
-        //         script {
-        //             sshagent(['deploy']) {
-        //                 sh """ssh ec2-user@${EC2_INSTANCE_IP} '. /home/ec2-user/deploy/install-docker-amazon.sh'"""
-        //                 }
-        //         }
-        //     }
-        // }
-        // stage('Deploy Web Application with Docker Compose') {
-        // agent { 
-        //     label 'linux'
-        // }            
-        //     steps {
-        //         script {
-        //             // Copy Docker Compose file to the EC2 instance
-        //             sshagent(['deploy']) {
-        //                 sh """scp docker-compose.yml ec2-user@${EC2_INSTANCE_IP}:/home/ec2-user/deploy/"""
-        //             }
-        //             // Copy nginx config file to the EC2 instance
-        //             sshagent(['deploy']) {
-        //                 sh """scp nginx.conf ec2-user@${EC2_INSTANCE_IP}:/home/ec2-user/deploy"""
-        //             } 
-        //             // Copy html file to the EC2 instance
-        //             sshagent(['deploy']) {
-        //                 sh """scp index.html ec2-user@${EC2_INSTANCE_IP}:/home/ec2-user/deploy"""
-        //             }                     
-        //             // Deploy the web application using Docker Compose on the EC2 instance
-        //             sshagent(['deploy']) {
-        //                 sh """ssh ec2-user@${EC2_INSTANCE_IP} 'cd /home/ec2-user/deploy/ && docker compose -f docker-compose.yml up -d'"""
-        //             }
-        //         }
-        //     }
-        // }
+        stage('Install Docker') {
+        agent { 
+            label 'nole'
+        }            
+            steps {
+                script {
+                    // SSH into EC2 instance and run the Docker container
+                    sshagent(['deploy-agent']) {
+                        sh """
+                            scp linux_install_guilde_docker/install-docker-amazon.sh azureuser@${VM_INSTANCE_IP}:/home/azureuser/deploy/
+                        """
+                    }
+                }
+                script {
+                    sshagent(['deploy-agent']) {
+                        sh """ssh azureuser@${VM_INSTANCE_IP} '. /home/ec2-user/deploy/install-docker-amazon.sh'"""
+                        }
+                }
+            }
+        }
+        stage('Deploy Web Application with Docker Compose') {
+        agent { 
+            label 'nole'
+        }            
+            steps {
+                script {
+                    // Copy Docker Compose file to the EC2 instance
+                    sshagent(['deploy-agent']) {
+                        sh """scp docker-compose.yml azureuser@${VM_INSTANCE_IP}:/home/azureuser/deploy/"""
+                    }
+                    // Copy nginx config file to the EC2 instance
+                    sshagent(['deploy']) {
+                        sh """scp nginx.conf azureuser@${VM_INSTANCE_IP}:/home/azureuser/deploy"""
+                    } 
+                    // Copy html file to the EC2 instance
+                    sshagent(['deploy']) {
+                        sh """scp index.html azureuser@${VM_INSTANCE_IP}:/home/azureuser/deploy"""
+                    }                     
+                    // Deploy the web application using Docker Compose on the EC2 instance
+                    sshagent(['deploy']) {
+                        sh """ssh azureuser@${VM_INSTANCE_IP}:/home/azureuser/deploy && docker compose -f docker-compose.yml up -d'"""
+                    }
+                }
+            }
+        }
         // stage('Scan with windows') {
         // agent { 
         //     label 'windows-slave'
@@ -139,18 +142,17 @@ pipeline {
             parallel {
                 stage('Build and Test on main') {
                 agent { 
-                    label 'linux'
+                    label 'nole'
                 }                      
                     when {
                             expression { params.BRANCH == 'main' }
                     }
                     steps {
-                        withCredentials([[
-                            $class: 'AmazonWebServicesCredentialsBinding',
-                            credentialsId: "jenkins",
-                            accessKeyVariable: 'AWS_ACCESS_KEY_ID',
-                            secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
-                        ]]) {
+                        withCredentials([azureServicePrincipal('azkey')]) {
+                            sh 'az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET -t $AZURE_TENANT_ID'
+                            sh 'az account set -s $AZURE_SUBSCRIPTION_ID'
+                            sh 'az resource list'
+                        } {
                             sh """aws cloudformation create-stack --stack-name ${STACK_NAME} --template-body file://template.yaml --parameters ParameterKey=InstanceName,ParameterValue=${EC2_INSTANCE_NAME}"""
                         }
                     }
@@ -164,12 +166,11 @@ pipeline {
                         expression { params.BRANCH == 'dev' }
                     }
                     steps {
-                        withCredentials([[
-                            $class: 'AmazonWebServicesCredentialsBinding',
-                            credentialsId: "jenkins",
-                            accessKeyVariable: 'AWS_ACCESS_KEY_ID',
-                            secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
-                        ]]) {
+                        withCredentials([azureServicePrincipal('azkey')]) {
+                            sh 'az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET -t $AZURE_TENANT_ID'
+                            sh 'az account set -s $AZURE_SUBSCRIPTION_ID'
+                            sh 'az resource list'
+                        } {
                             sh """aws cloudformation create-stack --stack-name ${STACK_NAME} --template-body file://template.yaml --parameters ParameterKey=BucketName,ParameterValue=${S3_BUCKET_NAME}"""
                         }
                     }
