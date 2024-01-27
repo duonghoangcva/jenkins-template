@@ -20,7 +20,7 @@ pipeline {
     stages {
         stage('Clean up build env linux') {
         agent { 
-            label 'linux-master'
+            label 'linux-agent'
         }            
             steps {
                 cleanWs()
@@ -28,10 +28,17 @@ pipeline {
         }
         stage('Checkout Linux') {
         agent { 
-            label 'linux-master'
+            label 'linux-agent'
         }            
             steps {
-                git branch: 'main', credentialsId: 'jenkins-ssh', url: 'git@github.com:duonghoangcva/jenkins-template.git'            } 
+                git branch: 'main', credentialsId: 'jenkins-ssh', url: 'https://github.com/duonghoangcva/jenkins-template.git'            } 
+        }
+        stage('Checkout Local') {
+        agent { 
+            label 'local'
+        }            
+            steps {
+                git branch: 'main', credentialsId: 'jenkins-ssh', url: 'https://github.com/duonghoangcva/jenkins-template.git'            } 
         }
         // stage('Clean up build env windows') {
         // agent { 
@@ -50,7 +57,7 @@ pipeline {
         // }        
         stage('Build') {
         agent { 
-            label 'linux-master'
+            label 'linux-agent'
         }            
             steps {
                 script {
@@ -59,64 +66,67 @@ pipeline {
                 }
             }
         }
-        stage('Login to az') {
-            steps {
-                withCredentials([azureServicePrincipal('azkey')]) {
-                          sh 'az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET -t $AZURE_TENANT_ID'
-                          sh 'az account set -s $AZURE_SUBSCRIPTION_ID'
-                          sh 'az resource list'
-                }
-            }
-        stage('Deploy to Blob') {
-            steps {
-                sh 'pwd'
-                sh 'chmod +x ./azblob.sh'
-                sh './azblob.sh'
-                // sh 'cat /home/ec2-user/work/workspace/demo-tos3/index.html'
-            }
-        }
+        // stage('Login to az') {
+        //     steps {
+        //         withCredentials([azureServicePrincipal('azkey')]) {
+        //                   sh 'az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET -t $AZURE_TENANT_ID'
+        //                   sh 'az account set -s $AZURE_SUBSCRIPTION_ID'
+        //                   sh 'az resource list'
+        //         }
+        //     }
+        // stage('Deploy to Blob') {
+        //     steps {
+        //         sh 'pwd'
+        //         sh 'chmod +x ./azblob.sh'
+        //         sh './azblob.sh'
+        //         // sh 'cat /home/ec2-user/work/workspace/demo-tos3/index.html'
+        //     }
+        // }
         
         stage('Install Docker') {
         agent { 
-            label 'linux-master'
+            label 'linux-agent'
         }            
             steps {
                 script {
                     // SSH into VM instance and run the Docker container
-                    sshagent(['deploy-agent']) {
+                    sshagent(['minikey']) {
+                        // sh '''
+                        //   [ -d ~/.ssh ] || mkdir ~/.ssh && chmod 0700 ~/.ssh
+                        //   ssh-keyscan -t rsa,dsa ${VM_INSTANCE_IP} >> ~/.ssh/known_hosts
+                        //   ssh azureuser@${VM_INSTANCE_IP}
+                        //   '''
+                        // sh 'ssh azureuser@${VM_INSTANCE_IP} sudo mkdir /home/azureuser/deploy'
+                        sh 'pwd'
                         sh """
-                            scp linux_install_guilde_docker/install-docker.sh azureuser@${VM_INSTANCE_IP}:/home/azureuser/deploy/
+                            scp ./linux_install_guilde_docker/install-docker-ubuntu.sh azureuser@${VM_INSTANCE_IP}:/home/azureuser/deploy/
                         """
+                        sh """ssh azureuser@${VM_INSTANCE_IP} '. /home/azureuser/deploy/install-docker-ubuntu.sh'"""
                     }
-                }
-                script {
-                    sshagent(['deploy-agent']) {
-                        sh """ssh azureuser@${VM_INSTANCE_IP} '. /home/ec2-user/deploy/install-docker.sh'"""
-                        }
                 }
             }
         }
         stage('Deploy Web Application with Docker Compose') {
         agent { 
-            label 'linux-master'
+            label 'linux-agent'
         }            
             steps {
                 script {
                     // Copy Docker Compose file to the EC2 instance
-                    sshagent(['deploy-agent']) {
+                    sshagent(['minikey']) {
                         sh """scp docker-compose.yml azureuser@${VM_INSTANCE_IP}:/home/azureuser/deploy/"""
                     }
                     // Copy nginx config file to the EC2 instance
-                    sshagent(['deploy-agent']) {
+                    sshagent(['minikey']) {
                         sh """scp nginx.conf azureuser@${VM_INSTANCE_IP}:/home/azureuser/deploy"""
                     } 
                     // Copy html file to the EC2 instance
-                    sshagent(['deploy-agent']) {
+                    sshagent(['minikey']) {
                         sh """scp index.html azureuser@${VM_INSTANCE_IP}:/home/azureuser/deploy"""
                     }                     
                     // Deploy the web application using Docker Compose on the EC2 instance
-                    sshagent(['deploy-agent']) {
-                        sh """ssh azureuser@${VM_INSTANCE_IP}:/home/azureuser/deploy && docker compose -f docker-compose.yml up -d'"""
+                    sshagent(['minikey']) {
+                        sh """ssh azureuser@${VM_INSTANCE_IP} 'cd /home/azureuser/deploy/ && docker compose -f docker-compose.yml up -d'"""
                     }
                 }
             }
@@ -127,7 +137,9 @@ pipeline {
         }            
             steps {
                 // bat 'cd JenkinsWebApplicationDemo && sonar-scanner -Dsonar.projectKey=testc -Dsonar.sources=. -Dsonar.host.url=http://localhost:9000 -Dsonar.login=squ_f09ad1c0fd77e0d30e72876858242610c06ae80e'
-                sh 'docker run --rm --network host -v `pwd`:/app --workdir="/app" sonarsource/sonar-scanner-cli sonar-scanner -X $SONAR_SCANNER_OPTS -Dsonar.host.url="http://localhost:80" -Dsonar.login="sqa_d959bc3d1ae916a432cf138bfddeee4b192b0c22" -Dsonar.sources="." -Dsonar.projectKey="test-project" -Dsonar.projectName="test-project" -Dsonar.projectVersion="v1.0.0"'
+                sh 'pwd'
+                sh 'ls'
+                sh 'docker run --rm --network host -v `pwd`:/app --workdir="/app" sonarsource/sonar-scanner-cli sonar-scanner -X $SONAR_SCANNER_OPTS -Dsonar.host.url="http://localhost:80" -Dsonar.login="sqa_d959bc3d1ae916a432cf138bfddeee4b192b0c22" -Dsonar.sources="notes_app/" -Dsonar.projectKey="test-project" -Dsonar.projectName="test-project" -Dsonar.projectVersion="v1.0.0"'
             }
         }        
         stage('Slack Notify') {
@@ -152,9 +164,10 @@ pipeline {
                             sh 'az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET -t $AZURE_TENANT_ID'
                             sh 'az account set -s $AZURE_SUBSCRIPTION_ID'
                             sh 'az resource list'
-                        } {
-                            // sh """aws cloudformation create-stack --stack-name ${STACK_NAME} --template-body file://template.yaml --parameters ParameterKey=InstanceName,ParameterValue=${EC2_INSTANCE_NAME}"""
-                        }
+                        } 
+                        // {
+                        //     // sh """aws cloudformation create-stack --stack-name ${STACK_NAME} --template-body file://template.yaml --parameters ParameterKey=InstanceName,ParameterValue=${EC2_INSTANCE_NAME}"""
+                        // }
                     }
                 }
 
@@ -170,9 +183,10 @@ pipeline {
                             sh 'az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET -t $AZURE_TENANT_ID'
                             sh 'az account set -s $AZURE_SUBSCRIPTION_ID'
                             sh 'az resource list'
-                        } {
-                            // sh """aws cloudformation create-stack --stack-name ${STACK_NAME} --template-body file://template.yaml --parameters ParameterKey=BucketName,ParameterValue=${S3_BUCKET_NAME}"""
-                        }
+                        } 
+                        // {
+                        //     // sh """aws cloudformation create-stack --stack-name ${STACK_NAME} --template-body file://template.yaml --parameters ParameterKey=BucketName,ParameterValue=${S3_BUCKET_NAME}"""
+                        // }
                     }
                 }
             }
