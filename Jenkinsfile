@@ -150,47 +150,47 @@ pipeline {
                 slackSend channel: 'pratice', message: 'test'
             }
         }
-        stage('Build and Test') {
-            parallel {
-                stage('Build and Test on main') {
-                agent { 
-                    label 'local'
-                }                      
-                    when {
-                            expression { params.BRANCH == 'main' }
-                    }
-                    steps {
-                        withCredentials([azureServicePrincipal('azkey')]) {
-                            sh 'az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET -t $AZURE_TENANT_ID'
-                            sh 'az account set -s $AZURE_SUBSCRIPTION_ID'
-                            sh 'az resource list'
-                        } 
-                        // {
-                        //     // sh """aws cloudformation create-stack --stack-name ${STACK_NAME} --template-body file://template.yaml --parameters ParameterKey=InstanceName,ParameterValue=${EC2_INSTANCE_NAME}"""
-                        // }
-                    }
-                }
+        // stage('Build and Test') {
+        //     parallel {
+        //         stage('Build and Test on main') {
+        //         agent { 
+        //             label 'local'
+        //         }                      
+        //             when {
+        //                     expression { params.BRANCH == 'main' }
+        //             }
+        //             steps {
+        //                 withCredentials([azureServicePrincipal('azkey')]) {
+        //                     sh 'az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET -t $AZURE_TENANT_ID'
+        //                     sh 'az account set -s $AZURE_SUBSCRIPTION_ID'
+        //                     sh 'az resource list'
+        //                 } 
+        //                 // {
+        //                 //     // sh """aws cloudformation create-stack --stack-name ${STACK_NAME} --template-body file://template.yaml --parameters ParameterKey=InstanceName,ParameterValue=${EC2_INSTANCE_NAME}"""
+        //                 // }
+        //             }
+        //         }
 
-                stage('Build and Test on Dev') {
-                agent { 
-                    label 'local'
-                }                     
-                    when {
-                        expression { params.BRANCH == 'dev' }
-                    }
-                    steps {
-                        withCredentials([azureServicePrincipal('azkey')]) {
-                            sh 'az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET -t $AZURE_TENANT_ID'
-                            sh 'az account set -s $AZURE_SUBSCRIPTION_ID'
-                            sh 'az resource list'
-                        } 
-                        // {
-                        //     // sh """aws cloudformation create-stack --stack-name ${STACK_NAME} --template-body file://template.yaml --parameters ParameterKey=BucketName,ParameterValue=${S3_BUCKET_NAME}"""
-                        // }
-                    }
-                }
-            }
-        }
+        //         stage('Build and Test on Dev') {
+        //         agent { 
+        //             label 'local'
+        //         }                     
+        //             when {
+        //                 expression { params.BRANCH == 'dev' }
+        //             }
+        //             steps {
+        //                 withCredentials([azureServicePrincipal('azkey')]) {
+        //                     sh 'az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET -t $AZURE_TENANT_ID'
+        //                     sh 'az account set -s $AZURE_SUBSCRIPTION_ID'
+        //                     sh 'az resource list'
+        //                 } 
+        //                 // {
+        //                 //     // sh """aws cloudformation create-stack --stack-name ${STACK_NAME} --template-body file://template.yaml --parameters ParameterKey=BucketName,ParameterValue=${S3_BUCKET_NAME}"""
+        //                 // }
+        //             }
+        //         }
+        //     }
+        // }
     }   
     post {
          always {  
